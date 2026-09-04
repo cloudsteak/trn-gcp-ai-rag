@@ -18,7 +18,8 @@ collection.add(
 
 results = collection.query(
     query_texts=["Ez egy lekérdező dokumentum az Apple termékekről"], # Chroma will embed this for you
-    n_results=4 # how many results to return
+    n_results=4, # how many results to return
+    include=["embeddings", "documents", "metadatas", "distances"]
 )
 # Eredmények kiíratása a konzolra
 print("Eredmények:")
