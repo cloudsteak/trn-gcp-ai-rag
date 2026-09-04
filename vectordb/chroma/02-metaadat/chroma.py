@@ -1,8 +1,7 @@
 import chromadb
-chroma_client = chromadb.Client()
+chroma_client = chromadb.PersistentClient(path="./chroma_data")
 
-
-collection = chroma_client.create_collection(name="metadata_collection")
+collection = chroma_client.get_or_create_collection(name="metaadat_collection")
 
 
 collection.add(
@@ -24,7 +23,8 @@ collection.add(
 
 results = collection.query(
     query_texts=["Ez egy lekérdező dokumentum az Apple termékekről"], # Chroma will embed this for you
-    n_results=4 # how many results to return
+    n_results=collection.count(), # how many results to return
+    include=["embeddings", "documents", "metadatas", "distances"]
 )
 # Eredmények kiíratása a konzolra
 print("Eredmények:")
