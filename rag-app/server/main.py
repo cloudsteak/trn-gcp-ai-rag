@@ -1,0 +1,390 @@
+"""
+rag-app server — a 3-rétegű alkalmazás közepe.
+
+A böngésző ide küldi a chat üzenetet. Itt:
+  1. (opcionális) RAG Engine-től dokumentumrészleteket kérünk
+  2. az LLM-et (Gemini, Agent Platform) streamelve hívjuk
+  3. a választ és a tanítási debug eseményeket SSE-n küldjük vissza
+
+Authentikáció: helyben ADC, Cloud Run-on a szolgáltatás service accountja.
+"""
+
+import json
+import re
+import time
+import warnings
+
+import agentplatform
+from agentplatform import types as ap_types
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from google.cloud import storage
+from google import genai
+from google.genai import types as genai_types
+from pydantic import BaseModel, Field
+
+import config
+
+# A RAG Engine Python SDK jelenleg experimental — a laborban ez várható.
+warnings.filterwarnings("ignore", message=".*rag module is experimental.*")
+
+app = FastAPI(title="rag-app-server")
+
+# A client másik origin-ről fut (localhost:3000 vagy másik Cloud Run URL).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# LLM: globális modell (gemini-3.5-flash-lite) → location = "global"
+llm_client = genai.Client(
+    enterprise=True,
+    project=config.PROJECT_ID,
+    location=config.LLM_LOCATION,
+)
+
+# RAG Engine: regionális (alapból europe-west1)
+rag_client = agentplatform.Client(
+    project=config.PROJECT_ID,
+    location=config.rag_location(),
+)
+
+SYSTEM_PROMPT_RAG = (
+    "Te egy céges dokumentum-asszisztens vagy. Magyarul, röviden válaszolj. "
+    "Dokumentumrészleteket kaptál: olvasd el az összeset. "
+    "A rövid példakérdés, tartalomjegyzék vagy beállítási lista nem a válasz. "
+    "Ha van hosszabb, magyarázó bekezdés a fogalomról, azt használd — "
+    "akkor is, ha más részletekben csak példaként szerepel a szó. "
+    "Csak akkor mondd, hogy nincs információ, ha egyik részlet sem magyarázza a fogalmat."
+)
+
+SYSTEM_PROMPT_LLM = (
+    "Te egy segítőkész asszisztens vagy. Magyarul, röviden válaszolj. "
+    "A RAG ki van kapcsolva: nincsenek céges dokumentumok. "
+    "Általános tudásod alapján válaszolj. "
+    "Ne hivatkozz belső szabályzatra, dokumentumrészletre, és ne mondd, "
+    "hogy a dokumentumokban nincs információ."
+)
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = Field(default_factory=list)
+    use_rag: bool = True
+
+
+def sse(event: str, data: dict) -> str:
+    """Egy Server-Sent Event sor. A böngésző ezt parse-olja."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def is_quota_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "429" in text or "RESOURCE_EXHAUSTED" in text
+
+
+def quota_message() -> str:
+    return (
+        "429 RESOURCE_EXHAUSTED: a Google most nem adott kapacitást "
+        f"(modell: {config.LLM_MODEL}). Várj 30–60 másodpercet, és küldd újra. "
+        "Képzésen a gemini-3.5-flash-lite szokott menni; az újabb Flash modelleknek "
+        "kisebb a kvótája. Console: IAM & Admin → Quotas → generate_content."
+    )
+
+
+def rag_search_text(question: str) -> str:
+    """A nyers „Mi az a Webhook?” gyakran a példakérdés-chunkot találja meg, nem a definíciót."""
+    q = question.strip()
+    match = re.match(r"(?i)^\s*mi\s+az\s+(?:a|az)?\s*(.+?)\s*\??\s*$", q)
+    if match:
+        term = match.group(1).strip(" ?!.")
+        return f"{term}\n{term} definíció magyarázat jelentése működés"
+    return q
+
+
+def prefer_explanatory(chunks: list[dict]) -> list[dict]:
+    """A rövid FAQ / címsor darabok menjenek hátra, a magyarázó bekezdések előre."""
+    return sorted(chunks, key=lambda c: len(c.get("text") or ""), reverse=True)
+
+
+def retrieve(question: str) -> list[dict]:
+    """RAG Engine: vektoros keresés, ha lehet kulcsszóval kiegészítve, majd ranker."""
+    ranking = None
+    if config.RAG_RANKER:
+        ranking = genai_types.RagRetrievalConfigRanking(
+            rank_service=genai_types.RagRetrievalConfigRankingRankService(
+                model_name=config.RAG_RANKER
+            )
+        )
+
+    def call(hybrid: bool):
+        retrieval = {"top_k": config.RAG_TOP_K}
+        if ranking:
+            retrieval["ranking"] = ranking
+        if hybrid:
+            retrieval["hybrid_search"] = genai_types.RagRetrievalConfigHybridSearch(
+                alpha=0.4
+            )
+        return rag_client.rag.retrieve_contexts(
+            vertex_rag_store=genai_types.VertexRagStore(
+                rag_resources=[
+                    genai_types.VertexRagStoreRagResource(rag_corpus=config.RAG_CORPUS)
+                ]
+            ),
+            query=ap_types.RagQuery(
+                text=question,
+                rag_retrieval_config=genai_types.RagRetrievalConfig(**retrieval),
+            ),
+        )
+
+    try:
+        response = call(hybrid=True)
+    except Exception as exc:
+        if is_quota_error(exc):
+            raise
+        response = call(hybrid=False)
+
+    chunks = []
+    for ctx in getattr(getattr(response, "contexts", None), "contexts", []) or []:
+        text = getattr(ctx, "text", None) or ""
+        if not text:
+            chunk = getattr(ctx, "chunk", None)
+            text = getattr(chunk, "text", "") if chunk is not None else ""
+        chunks.append(
+            {
+                "source": getattr(ctx, "source_uri", "")
+                or getattr(ctx, "source_display_name", ""),
+                "text": text,
+                "distance": getattr(ctx, "distance", None),
+                "score": getattr(ctx, "score", None),
+            }
+        )
+    return chunks
+
+
+def unique_sources(chunks: list[dict]) -> list[dict]:
+    items = []
+    seen = set()
+    for chunk in chunks:
+        uri = (chunk.get("source") or "").strip()
+        if not uri or uri in seen:
+            continue
+        seen.add(uri)
+        items.append({"uri": uri, "name": uri.rstrip("/").rsplit("/", 1)[-1]})
+    return items
+
+
+def to_history(history: list[ChatMessage]) -> list[genai_types.Content]:
+    """Előző körök a Chat sessionnek. Az aktuális kérdés külön megy."""
+    contents = []
+    for msg in history:
+        role = "user" if msg.role == "user" else "model"
+        contents.append(
+            genai_types.Content(role=role, parts=[genai_types.Part(text=msg.content)])
+        )
+    return contents
+
+
+def build_user_text(message: str, chunks: list[dict] | None) -> str:
+    if not chunks:
+        return message
+    parts = [
+        f"Felhasználó kérdése:\n{message}",
+        "",
+        "A RAG Engine az alábbi dokumentumrészleteket adta vissza:",
+    ]
+    for i, chunk in enumerate(chunks, start=1):
+        source = chunk.get("source") or "(nincs forrás)"
+        parts.append(f"\n--- {i}. részlet ({source}) ---\n{chunk.get('text', '')}")
+    parts.append(
+        "\nOlvasd el az összes részletet. Válaszolj a kérdésre ezek alapján. "
+        "Ha a definíció vagy a magyarázat valamelyik részletben megvan, azt használd, "
+        "akkor is, ha más részletekben csak példaként szerepel a szó. "
+        "Csak akkor mondd, hogy nincs elég információ, ha egyik részlet sem tartalmazza a választ."
+    )
+    return "\n".join(parts)
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+@app.get("/info")
+def info():
+    """A UI-nak: milyen modell / régió van beállítva (titkot nem adunk ki)."""
+    return {
+        "model": config.LLM_MODEL,
+        "llm_location": config.LLM_LOCATION,
+        "rag_location": config.rag_location(),
+        "rag_configured": bool(config.RAG_CORPUS),
+    }
+
+
+@app.get("/source")
+def read_source(uri: str):
+    """A RAG gs:// forrásának teljes szövege — a client ebből mutatja a dokumentumot."""
+    if not uri.startswith("gs://"):
+        raise HTTPException(400, "Csak gs:// hivatkozás nyitható.")
+    path = uri[5:]
+    bucket_name, _, blob_name = path.partition("/")
+    if not bucket_name or not blob_name:
+        raise HTTPException(400, "Hibás gs:// URI.")
+    blob = storage.Client(project=config.PROJECT_ID).bucket(bucket_name).blob(blob_name)
+    return {
+        "uri": uri,
+        "name": blob_name.rsplit("/", 1)[-1],
+        "text": blob.download_as_text(encoding="utf-8"),
+    }
+
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    """SSE stream: debug események + tokenek. POST, mert a history a body-ban van."""
+
+    def events():
+        try:
+            yield sse(
+                "debug",
+                {
+                    "kind": "backend",
+                    "title": "A client üzenete megérkezett a serverre",
+                    "detail": {
+                        "path": "POST /chat",
+                        "use_rag": req.use_rag,
+                        "message": req.message,
+                        "history_length": len(req.history),
+                        "project": config.PROJECT_ID,
+                    },
+                },
+            )
+
+            chunks = []
+            if req.use_rag:
+                if not config.RAG_CORPUS:
+                    yield sse(
+                        "debug",
+                        {
+                            "kind": "rag",
+                            "title": "RAG kihagyva: RAG_CORPUS nincs beállítva",
+                            "detail": {"rag_corpus": ""},
+                        },
+                    )
+                    yield sse(
+                        "token",
+                        {
+                            "text": "A RAG be van kapcsolva, de a szerveren nincs RAG_CORPUS. "
+                            "Állítsd be a rag-app/.env fájlban."
+                        },
+                    )
+                    yield sse("done", {})
+                    return
+
+                search = rag_search_text(req.message)
+                yield sse(
+                    "debug",
+                    {
+                        "kind": "rag",
+                        "title": "RAG Engine hívás indul",
+                        "detail": {
+                            "method": "rag.retrieve_contexts",
+                            "corpus": config.RAG_CORPUS,
+                            "location": config.rag_location(),
+                            "top_k": config.RAG_TOP_K,
+                            "ranker": config.RAG_RANKER,
+                            "user_question": req.message,
+                            "search_text": search,
+                        },
+                    },
+                )
+                chunks = prefer_explanatory(retrieve(search))
+                yield sse(
+                    "debug",
+                    {
+                        "kind": "rag",
+                        "title": "RAG Engine válasz",
+                        "detail": {
+                            "chunk_count": len(chunks),
+                            "chunks": chunks,
+                        },
+                    },
+                )
+            else:
+                yield sse(
+                    "debug",
+                    {
+                        "kind": "rag",
+                        "title": "RAG ki van kapcsolva",
+                        "detail": {"skipped": True},
+                    },
+                )
+
+            user_text = build_user_text(req.message, chunks if req.use_rag else None)
+            system_prompt = SYSTEM_PROMPT_RAG if req.use_rag else SYSTEM_PROMPT_LLM
+            llm_config = genai_types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(
+                    disable=True
+                ),
+            )
+
+            yield sse(
+                "debug",
+                {
+                    "kind": "llm",
+                    "title": "LLM hívás indul (stream)",
+                    "detail": {
+                        "sdk": "google.genai",
+                        "enterprise": True,
+                        "model": config.LLM_MODEL,
+                        "location": config.LLM_LOCATION,
+                        "method": "chats.send_message_stream",
+                        "use_rag": req.use_rag,
+                        "system_instruction": system_prompt,
+                        "user_text": user_text,
+                    },
+                },
+            )
+
+            session = llm_client.chats.create(
+                model=config.LLM_MODEL,
+                config=llm_config,
+                history=to_history(req.history),
+            )
+            try:
+                stream = session.send_message_stream(user_text)
+            except Exception as exc:
+                if not is_quota_error(exc):
+                    raise
+                time.sleep(8)
+                stream = session.send_message_stream(user_text)
+            for chunk in stream:
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield sse("token", {"text": text})
+
+            if req.use_rag and chunks:
+                yield sse("sources", {"items": unique_sources(chunks)})
+            yield sse("done", {})
+        except Exception as exc:
+            yield sse("debug", {"kind": "error", "title": "Hiba", "detail": {"error": str(exc)}})
+            text = quota_message() if is_quota_error(exc) else f"Hiba: {exc}"
+            yield sse("token", {"text": text})
+            yield sse("done", {})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
