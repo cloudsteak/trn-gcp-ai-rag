@@ -44,6 +44,63 @@ function appendBubble(role, text) {
   return el;
 }
 
+function appendAssistantTurn() {
+  const turn = document.createElement("div");
+  turn.className = "turn";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble assistant";
+  const cites = document.createElement("div");
+  cites.className = "cites";
+  turn.append(bubble, cites);
+  messagesEl.appendChild(turn);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return { bubble, cites };
+}
+
+function fileName(uri) {
+  try {
+    return decodeURIComponent(uri.split("/").pop() || uri);
+  } catch {
+    return uri;
+  }
+}
+
+function renderCites(citesEl, items) {
+  citesEl.innerHTML = "";
+  for (const item of items) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cite";
+    btn.textContent = item.name || fileName(item.uri);
+    btn.title = item.uri;
+    btn.addEventListener("click", () => openSource(item.uri, btn.textContent));
+    citesEl.appendChild(btn);
+  }
+}
+
+const sourceDialog = document.getElementById("sourceDialog");
+const sourceTitle = document.getElementById("sourceTitle");
+const sourceUri = document.getElementById("sourceUri");
+const sourceBody = document.getElementById("sourceBody");
+
+async function openSource(uri, name) {
+  sourceTitle.textContent = name;
+  sourceUri.textContent = uri;
+  sourceBody.textContent = "Betöltés…";
+  sourceDialog.showModal();
+  try {
+    const response = await fetch(
+      `${apiUrl.replace(/\/$/, "")}/source?uri=${encodeURIComponent(uri)}`
+    );
+    const data = await response.json();
+    sourceBody.textContent = data.text || data.detail || "Nem sikerült betölteni a fájlt.";
+  } catch (error) {
+    sourceBody.textContent = `Nem sikerült betölteni a fájlt. ${error}`;
+  }
+}
+
+document.getElementById("sourceClose").addEventListener("click", () => sourceDialog.close());
+
 function appendDebug(event) {
   if (debugLog.dataset.empty !== "false") {
     debugLog.textContent = "";
@@ -110,7 +167,8 @@ formEl.addEventListener("submit", async (event) => {
   inputEl.style.height = "auto";
   sendBtn.disabled = true;
 
-  const assistantEl = appendBubble("assistant", "");
+  const assistantTurn = appendAssistantTurn();
+  const assistantEl = assistantTurn.bubble;
   let assistantText = "";
   activeAbort = new AbortController();
 
@@ -147,6 +205,9 @@ formEl.addEventListener("submit", async (event) => {
           assistantText += chunk;
           assistantEl.textContent = assistantText;
           messagesEl.scrollTop = messagesEl.scrollHeight;
+        }, (items) => {
+          renderCites(assistantTurn.cites, items);
+          messagesEl.scrollTop = messagesEl.scrollHeight;
         });
       }
     }
@@ -165,7 +226,7 @@ formEl.addEventListener("submit", async (event) => {
   }
 });
 
-function handleSseBlock(block, onToken) {
+function handleSseBlock(block, onToken, onSources) {
   let eventName = "message";
   const dataLines = [];
   for (const line of block.split("\n")) {
@@ -176,6 +237,7 @@ function handleSseBlock(block, onToken) {
   const payload = JSON.parse(dataLines.join("\n"));
   if (eventName === "debug") appendDebug(payload);
   if (eventName === "token" && payload.text) onToken(payload.text);
+  if (eventName === "sources" && onSources) onSources(payload.items || []);
 }
 
 setDebugVisible(false);

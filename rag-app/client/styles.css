@@ -183,6 +183,91 @@ h1 {
   align-self: flex-end;
 }
 
+.turn {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.turn .bubble {
+  align-self: flex-start;
+}
+
+.cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cite {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cite:hover {
+  background: #c5e6d8;
+}
+
+.source-dialog {
+  width: min(860px, calc(100vw - 32px));
+  max-height: min(80vh, 800px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.source-dialog::backdrop {
+  background: rgba(28, 27, 22, 0.35);
+}
+
+.source-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.source-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.source-uri {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.source-head .secondary {
+  padding: 8px 14px;
+  flex-shrink: 0;
+}
+
+.source-body {
+  margin: 0;
+  padding: 18px;
+  max-height: calc(80vh - 90px);
+  overflow: auto;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .composer {
   display: flex;
   gap: 10px;
