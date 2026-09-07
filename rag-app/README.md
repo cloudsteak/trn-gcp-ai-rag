@@ -521,6 +521,9 @@ gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
   --role="roles/serviceusage.serviceUsageConsumer"
 ```
 
+**`403` a dokumentum megnyitásakor**  
+A server olvassa a `gs://` fájlt. Helyben az ADC-s fióknak, Cloud Run-on a `rag-app-server` SA-nak kell `roles/storage.objectViewer` (vagy Owner). Futtasd újra: `./scripts/setup-gcp.sh`
+
 **`403` / `PermissionDenied` az LLM-en vagy a RAG-on**  
 Helyben a **felhasználódnak** kell `roles/aiplatform.user` (vagy Owner). Cloud Run-on a `rag-app-server` SA-nak — futtasd újra a `setup-gcp` scriptet.
 
