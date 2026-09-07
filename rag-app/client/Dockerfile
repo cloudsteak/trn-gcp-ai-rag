@@ -1,7 +1,7 @@
 FROM nginx:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html styles.css app.js /usr/share/nginx/html/
+COPY index.html styles.css app.js markdown.js /usr/share/nginx/html/
 COPY docker-entrypoint.sh /docker-entrypoint-rag.sh
 
 RUN chmod +x /docker-entrypoint-rag.sh

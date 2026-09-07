@@ -83,9 +83,26 @@ const sourceTitle = document.getElementById("sourceTitle");
 const sourceUri = document.getElementById("sourceUri");
 const sourceBody = document.getElementById("sourceBody");
 
+function isMarkdownFile(name, uri) {
+  return /\.md(\b|$)/i.test(`${name || ""} ${uri || ""}`);
+}
+
+function showSourceText(name, uri, text) {
+  sourceBody.classList.remove("plain", "markdown");
+  if (isMarkdownFile(name, uri) && typeof renderMarkdown === "function") {
+    sourceBody.classList.add("markdown");
+    sourceBody.innerHTML = renderMarkdown(text);
+    return;
+  }
+  sourceBody.classList.add("plain");
+  sourceBody.textContent = text;
+}
+
 async function openSource(uri, name) {
   sourceTitle.textContent = name;
   sourceUri.textContent = uri;
+  sourceBody.classList.remove("markdown");
+  sourceBody.classList.add("plain");
   sourceBody.textContent = "Betöltés…";
   sourceDialog.showModal();
   try {
@@ -93,8 +110,15 @@ async function openSource(uri, name) {
       `${apiUrl.replace(/\/$/, "")}/source?uri=${encodeURIComponent(uri)}`
     );
     const data = await response.json();
-    sourceBody.textContent = data.text || data.detail || "Nem sikerült betölteni a fájlt.";
+    const text = data.text || data.detail || "Nem sikerült betölteni a fájlt.";
+    if (!response.ok) {
+      sourceBody.classList.add("plain");
+      sourceBody.textContent = typeof text === "string" ? text : JSON.stringify(text);
+      return;
+    }
+    showSourceText(data.name || name, data.uri || uri, text);
   } catch (error) {
+    sourceBody.classList.add("plain");
     sourceBody.textContent = `Nem sikerült betölteni a fájlt. ${error}`;
   }
 }

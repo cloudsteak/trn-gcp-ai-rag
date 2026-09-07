@@ -460,7 +460,8 @@ rag-app/
 
 1. A `config.js` megmondja a server URL-t.
 2. Küldéskor `POST /chat` JSON-nal: `message`, `history`, `use_rag`.
-3. A válasz SSE: `debug` események a jobb oldali panelre, `token` események a chatbuborékba.
+3. A válasz SSE: `debug` események a jobb oldali panelre, `token` események a chatbuborékba. A releváns források címkére kattintva a `GET /source` betölti a `gs://` fájlt.
+4. A `.md` dokumentumokat a `markdown.js` HTML-lé alakítja (címsor, lista, kód, táblázat). Más fájlok sima szövegként jelennek meg.
 
 ### Server (`server/main.py`)
 

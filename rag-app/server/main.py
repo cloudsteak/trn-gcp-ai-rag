@@ -170,16 +170,108 @@ def retrieve(question: str) -> list[dict]:
     return chunks
 
 
-def unique_sources(chunks: list[dict]) -> list[dict]:
-    items = []
-    seen = set()
-    for chunk in chunks:
+_ACCENT = str.maketrans("áéíóöőúüű", "aeioouuuu")
+
+
+def _fold(text: str) -> str:
+    return (text or "").lower().translate(_ACCENT)
+
+
+def _tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]{3,}", _fold(text)))
+
+
+def _token_hit(query_token: str, doc_token: str) -> bool:
+    if query_token == doc_token:
+        return True
+    if len(query_token) >= 4 and len(doc_token) >= 4:
+        return query_token.startswith(doc_token) or doc_token.startswith(query_token)
+    return False
+
+
+def _overlap_count(query_tokens: set[str], text: str) -> int:
+    doc_tokens = _tokens(text)
+    hits = 0
+    for query_token in query_tokens:
+        if any(_token_hit(query_token, doc_token) for doc_token in doc_tokens):
+            hits += 1
+    return hits
+
+
+def relevant_sources(question: str, chunks: list[dict], max_docs: int = 3) -> list[dict]:
+    """Csak a kérdéshez illő források. A top_k találatban sok irreleváns doksi is van."""
+    query_tokens = _tokens(question)
+    by_uri: dict[str, dict] = {}
+    for index, chunk in enumerate(chunks):
         uri = (chunk.get("source") or "").strip()
-        if not uri or uri in seen:
+        if not uri:
             continue
-        seen.add(uri)
-        items.append({"uri": uri, "name": uri.rstrip("/").rsplit("/", 1)[-1]})
-    return items
+        score = chunk.get("score")
+        try:
+            score = float(score) if score is not None else None
+        except (TypeError, ValueError):
+            score = None
+        name = uri.rstrip("/").rsplit("/", 1)[-1]
+        current = by_uri.get(uri)
+        if current is None:
+            by_uri[uri] = {
+                "uri": uri,
+                "name": name,
+                "score": score,
+                "index": index,
+                "text": chunk.get("text") or "",
+            }
+            continue
+        current["text"] += "\n" + (chunk.get("text") or "")
+        current["index"] = min(current["index"], index)
+        if score is not None and (current["score"] is None or score > current["score"]):
+            current["score"] = score
+
+    docs = list(by_uri.values())
+    if not docs:
+        return []
+
+    needed = 2 if len(query_tokens) >= 2 else 1
+    related = [
+        doc
+        for doc in docs
+        if _overlap_count(query_tokens, f"{doc['name']}\n{doc['text']}") >= needed
+    ]
+    if related:
+        name_hits = [_overlap_count(query_tokens, doc["name"]) for doc in related]
+        best_name = max(name_hits)
+        if best_name >= 1:
+            related = [
+                doc for doc, hits in zip(related, name_hits) if hits == best_name
+            ]
+    docs.sort(
+        key=lambda doc: (
+            -(doc["score"] if doc["score"] is not None else -1e9),
+            doc["index"],
+        )
+    )
+    picked = related or docs[:1]
+
+    has_scores = any(doc["score"] is not None for doc in picked)
+    if has_scores:
+        picked.sort(
+            key=lambda doc: (
+                -(doc["score"] if doc["score"] is not None else -1e9),
+                doc["index"],
+            )
+        )
+        best = next((doc["score"] for doc in picked if doc["score"] is not None), None)
+        if best is not None and best > 0:
+            picked = [
+                doc
+                for doc in picked
+                if doc["score"] is not None and doc["score"] >= best * 0.85
+            ]
+    else:
+        picked.sort(key=lambda doc: doc["index"])
+        picked = picked[:1]
+
+    return [{"uri": doc["uri"], "name": doc["name"]} for doc in picked[:max_docs]]
 
 
 def to_history(history: list[ChatMessage]) -> list[genai_types.Content]:
@@ -268,6 +360,7 @@ def chat(req: ChatRequest):
             )
 
             chunks = []
+            cited = []
             if req.use_rag:
                 if not config.RAG_CORPUS:
                     yield sse(
@@ -305,7 +398,9 @@ def chat(req: ChatRequest):
                         },
                     },
                 )
-                chunks = prefer_explanatory(retrieve(search))
+                chunks = retrieve(search)
+                cited = relevant_sources(req.message, chunks)
+                chunks = prefer_explanatory(chunks)
                 yield sse(
                     "debug",
                     {
@@ -313,6 +408,8 @@ def chat(req: ChatRequest):
                         "title": "RAG Engine válasz",
                         "detail": {
                             "chunk_count": len(chunks),
+                            "cited_count": len(cited),
+                            "cited": cited,
                             "chunks": chunks,
                         },
                     },
@@ -371,8 +468,8 @@ def chat(req: ChatRequest):
                 if text:
                     yield sse("token", {"text": text})
 
-            if req.use_rag and chunks:
-                yield sse("sources", {"items": unique_sources(chunks)})
+            if req.use_rag and cited:
+                yield sse("sources", {"items": cited})
             yield sse("done", {})
         except Exception as exc:
             yield sse("debug", {"kind": "error", "title": "Hiba", "detail": {"error": str(exc)}})

@@ -258,14 +258,127 @@ h1 {
 
 .source-body {
   margin: 0;
-  padding: 18px;
+  padding: 18px 22px 28px;
   max-height: calc(80vh - 90px);
   overflow: auto;
+  word-break: break-word;
+}
+
+.source-body.plain {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.8rem;
   line-height: 1.5;
   white-space: pre-wrap;
-  word-break: break-word;
+}
+
+.source-body.markdown {
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.source-body.markdown > :first-child {
+  margin-top: 0;
+}
+
+.source-body.markdown h1,
+.source-body.markdown h2,
+.source-body.markdown h3,
+.source-body.markdown h4 {
+  margin: 1.2em 0 0.45em;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.source-body.markdown h1 {
+  font-size: 1.45rem;
+}
+
+.source-body.markdown h2 {
+  font-size: 1.2rem;
+}
+
+.source-body.markdown h3,
+.source-body.markdown h4 {
+  font-size: 1.05rem;
+}
+
+.source-body.markdown p,
+.source-body.markdown ul,
+.source-body.markdown ol,
+.source-body.markdown blockquote,
+.source-body.markdown table {
+  margin: 0 0 0.9em;
+}
+
+.source-body.markdown ul,
+.source-body.markdown ol {
+  padding-left: 1.3em;
+}
+
+.source-body.markdown li + li {
+  margin-top: 0.25em;
+}
+
+.source-body.markdown a {
+  color: var(--accent);
+}
+
+.source-body.markdown blockquote {
+  margin-left: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.source-body.markdown hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.2em 0;
+}
+
+.source-body.markdown code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.84em;
+  background: #f4f1ea;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+}
+
+.source-body.markdown pre {
+  margin: 0 0 0.9em;
+  padding: 12px 14px;
+  overflow: auto;
+  background: #f4f1ea;
+  border-radius: 12px;
+}
+
+.source-body.markdown pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.source-body.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.source-body.markdown th,
+.source-body.markdown td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.source-body.markdown th {
+  background: #f4f1ea;
+}
+
+.source-body.markdown img {
+  max-width: 100%;
+  border-radius: 10px;
 }
 
 .composer {
