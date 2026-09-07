@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Céges dokumentum-asszisztens</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo" aria-hidden="true"></span>
+          <div>
+            <h1>Céges dokumentum-asszisztens</h1>
+            <p class="subtitle">Kérdezz a belső szabályzatokról - RAG-gel vagy anélkül</p>
+          </div>
+        </div>
+        <div class="toggles">
+          <label class="switch">
+            <input id="ragToggle" type="checkbox" checked />
+            <span>RAG</span>
+          </label>
+          <label class="switch">
+            <input id="debugToggle" type="checkbox" />
+            <span>Hívások</span>
+          </label>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="chat-panel" aria-label="Beszélgetés">
+          <div id="messages" class="messages">
+            <div class="bubble assistant welcome">
+              Szervusz. Kérdezz a céges dokumentumokról. A <strong>RAG</strong> kapcsolóval
+              a válasz a feltöltött szabályzatokra támaszkodik. A <strong>Hívások</strong>
+              panelen a backend, az LLM és a RAG Engine kérései látszanak — ezt a képzésen
+              szoktuk bekapcsolni.
+            </div>
+          </div>
+          <form id="composer" class="composer">
+            <button type="button" id="newChat" class="secondary" title="Új beszélgetés">
+              Új
+            </button>
+            <textarea
+              id="input"
+              rows="1"
+              placeholder="Írd ide a kérdésed…"
+              autocomplete="off"
+            ></textarea>
+            <button type="submit" id="send">Küldés</button>
+          </form>
+        </section>
+
+        <aside id="debugPanel" class="debug-panel hidden" aria-label="Backend hívások">
+          <div class="debug-head">
+            <h2>Backend / LLM / RAG</h2>
+            <button type="button" id="clearDebug" class="ghost">Törlés</button>
+          </div>
+          <pre id="debugLog" class="debug-log">Kapcsold be, és küldj egy üzenetet.</pre>
+        </aside>
+      </main>
+    </div>
+    <script>
+      window.APP_CONFIG = { apiUrl: "http://localhost:8080" };
+    </script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
