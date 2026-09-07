@@ -4,11 +4,11 @@
   --ink: #1c1b16;
   --muted: #6b675c;
   --line: #e4dfd4;
-  --accent: #0f6e56;
-  --accent-soft: #d8efe6;
+  --accent: #215ea8;
+  --accent-soft: #d9e7f7;
   --user: #1c1b16;
   --debug-bg: #161513;
-  --debug-ink: #d7e7d4;
+  --debug-ink: #d4e0ec;
   --shadow: 0 12px 40px rgba(28, 27, 22, 0.08);
   --radius: 18px;
 }
@@ -28,7 +28,7 @@ body {
 
 body {
   background-image:
-    radial-gradient(circle at top right, #e7f3ee 0, transparent 32%),
+    radial-gradient(circle at top right, #e4eef8 0, transparent 32%),
     radial-gradient(circle at left bottom, #efe8d8 0, transparent 28%);
 }
 
@@ -59,8 +59,8 @@ body {
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  background: linear-gradient(145deg, #0f6e56, #1aa37a);
-  box-shadow: 0 8px 20px rgba(15, 110, 86, 0.28);
+  background: linear-gradient(145deg, #1a4f94, #3d82c9);
+  box-shadow: 0 8px 20px rgba(33, 94, 168, 0.28);
 }
 
 h1 {
@@ -212,7 +212,7 @@ h1 {
 }
 
 .cite:hover {
-  background: #c5e6d8;
+  background: #c5d9f0;
 }
 
 .source-dialog {
@@ -504,8 +504,8 @@ button {
   color: #d6e6ff;
 }
 .kind.rag {
-  background: #0f6e56;
-  color: #ddffef;
+  background: #215ea8;
+  color: #dcecff;
 }
 .kind.llm {
   background: #6b4a16;
