@@ -5,8 +5,8 @@ Két példa:
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontSize": "16px", "lineColor": "#334155"}, "flowchart": {"curve": "basis", "padding": 12}}}%%
 flowchart LR
-  A(["01-alap<br/>memória"]) --> C(["Chroma"])
-  B(["02-metaadat<br/>lemez + szűrés"]) --> C
+  A(["01-alap<br/>csak memóriában"]) --> C(["Chroma"])
+  B(["02-metaadat<br/>adatfájlba mentve"]) --> C
 
   classDef basic fill:#38bdf8,stroke:#0369a1,stroke-width:3px,color:#0f172a
   classDef meta fill:#fb923c,stroke:#c2410c,stroke-width:3px,color:#0f172a

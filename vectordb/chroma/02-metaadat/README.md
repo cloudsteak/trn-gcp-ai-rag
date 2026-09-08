@@ -6,7 +6,7 @@ A hivatalos dokumentáción alapul: https://docs.trychroma.com/docs/overview/get
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontSize": "16px", "lineColor": "#334155"}, "flowchart": {"curve": "basis", "padding": 12}}}%%
 flowchart LR
-  A(["Szöveg + metadata"]) --> B(["Chroma<br/>lemezre"])
+  A(["Szöveg + metadata"]) --> B(["Chroma<br/>chroma_data adatfájl"])
   B --> C(["Szűrt keresés"])
 
   classDef in fill:#fb923c,stroke:#c2410c,stroke-width:3px,color:#0f172a
