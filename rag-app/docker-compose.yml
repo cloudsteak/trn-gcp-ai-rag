@@ -1,0 +1,22 @@
+services:
+  server:
+    build: ./server
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+    volumes:
+      # ADC (gcloud auth application-default login) a konténerbe.
+      # A run-local-docker scriptek beállítják a GCLOUD_CONFIG_DIR-t.
+      - ${GCLOUD_CONFIG_DIR:-~/.config/gcloud}:/root/.config/gcloud:ro
+
+  client:
+    build: ./client
+    ports:
+      - "3000:8080"
+    environment:
+      PORT: "8080"
+      # A böngésző a saját gépéről hívja a servert, ezért localhost, nem a Docker hálózat.
+      API_URL: http://localhost:8080

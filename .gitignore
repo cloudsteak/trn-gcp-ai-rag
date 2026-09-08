@@ -219,3 +219,4 @@ __marimo__/
 
 
 **/chroma_data/**
+.DS_Store
