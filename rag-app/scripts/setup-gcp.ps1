@@ -33,7 +33,6 @@ if ($LASTEXITCODE -ne 0) {
 
 $ServerSa = "$($env:SERVER_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 $ClientSa = "$($env:CLIENT_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
-$BuildSa = "$($env:BUILD_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 $ProjectNumber = gcloud projects describe $env:GOOGLE_CLOUD_PROJECT --format="value(projectNumber)"
 $DefaultBuild = "$ProjectNumber@cloudbuild.gserviceaccount.com"
 $ComputeSa = "$ProjectNumber-compute@developer.gserviceaccount.com"
@@ -52,7 +51,6 @@ Write-Host ""
 Write-Host "3) Service accountok"
 Create-Sa $ServerSa "rag-app server (LLM + RAG)"
 Create-Sa $ClientSa "rag-app client"
-Create-Sa $BuildSa "rag-app Cloud Build"
 
 function Bind-Project([string]$Member, [string]$Role) {
     gcloud projects add-iam-policy-binding $env:GOOGLE_CLOUD_PROJECT `
@@ -69,7 +67,7 @@ Bind-Project $ServerSa "roles/logging.logWriter"
 Bind-Project $ServerSa "roles/storage.objectViewer"
 Bind-Project $ClientSa "roles/logging.logWriter"
 
-foreach ($sa in @($BuildSa, $DefaultBuild, $ComputeSa)) {
+foreach ($sa in @($DefaultBuild, $ComputeSa)) {
     Bind-Project $sa "roles/run.admin"
     Bind-Project $sa "roles/artifactregistry.writer"
     Bind-Project $sa "roles/logging.logWriter"
@@ -78,7 +76,7 @@ foreach ($sa in @($BuildSa, $DefaultBuild, $ComputeSa)) {
 }
 
 foreach ($runtime in @($ServerSa, $ClientSa)) {
-    foreach ($actor in @($BuildSa, $DefaultBuild, $ComputeSa)) {
+    foreach ($actor in @($DefaultBuild, $ComputeSa)) {
         gcloud iam service-accounts add-iam-policy-binding $runtime `
           --member="serviceAccount:$actor" `
           --role="roles/iam.serviceAccountUser" `
@@ -87,12 +85,10 @@ foreach ($runtime in @($ServerSa, $ClientSa)) {
 }
 
 Write-Host ""
-Write-Host "Kész. Következő lépések:"
-Write-Host "  - Helyi futtatás:  .\scripts\run-local.ps1"
-Write-Host "  - Cloud Run:       Console → Cloud Run → Create service"
-Write-Host "                     (a Cloud Buildet a varázsló állítja be; cloudbuild.yaml nincs)"
+Write-Host "Kész. Következő lépés: Console → Cloud Run → Connect repository"
+Write-Host "  1) rag-app-server"
+Write-Host "  2) rag-app-client (API_URL = a server URL)"
 Write-Host ""
 Write-Host "Service accountok:"
 Write-Host "  server: $ServerSa"
 Write-Host "  client: $ClientSa"
-Write-Host "  build:  $BuildSa"
