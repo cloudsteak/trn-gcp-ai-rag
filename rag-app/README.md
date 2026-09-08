@@ -265,9 +265,9 @@ Cloud Run-on **nincs ADC a te gépedről**: ott a `rag-app-server` service accou
 
 ## 8. GCP előkészítés (service account, API-k)
 
-Ezt **egyszer** futtasd, mielőtt helyben futtatnád, vagy mielőtt a Console-ban Cloud Run szolgáltatást hoznál létre.
+Ezt futtasd **az első Cloud Run előtt**, és **akkor is újra**, ha hiányzik egy jog (pl. ranker 403). Ami megvan, azt kihagyja; ami hiányzik, azt berakja.
 
-A script bekapcsolja az API-kat (köztük a Cloud Runét és a Cloud Buildét), létrehoz egy Artifact Registry tárat, **két** service accountot, és kiosztja a jogokat.
+A script bekapcsolja az API-kat, létrehoz Artifact Registry tárat és két service accountot, kiosztja az IAM szerepeket (köztük a `roles/discoveryengine.viewer` ranker jogot).
 
 **Mac / Linux**
 
@@ -286,7 +286,7 @@ Létrejön:
 
 | Service account | Szerep |
 | --- | --- |
-| `rag-app-server` | Cloud Run server. Ő hívja a Gemini-t és a RAG Engine-t (`roles/aiplatform.user`). |
+| `rag-app-server` | Cloud Run server. Gemini + RAG (`roles/aiplatform.user`) és a ranker (`roles/discoveryengine.viewer`). |
 | `rag-app-client` | Cloud Run client (statikus web). |
 
 Külön `rag-app-build` SA **nincs**: a Console Cloud Build a projekt **alap** Cloud Build / Compute Engine service accountját használja. A script ezeknek ad jogot a image buildhez és a Cloud Run frissítéshez.
@@ -450,15 +450,13 @@ Fent a lapon:
 
 **Containers → Settings:** CPU `1`, Memory `512 MiB` — ez az alap, a clientnek elég.
 
-**Containers → Variables & Secrets:** `API_URL` = a **server** Cloud Run URL-je, **slash nélkül** a végén.
+**Containers → Variables & Secrets:** `API_URL` = a **server** Cloud Run URL-je (a Console a server szolgáltatás tetején mutatja), **slash nélkül** a végén.
 
 **Security** fül: Runtime service account `rag-app-client@PROJEKT_ID.iam.gserviceaccount.com`
 
 **Networking:** ne nyúlj hozzá.
 
-A client konténer indításkor az `API_URL`-ből kiír egy `config.js` fájlt. Ha a server URL később változik, a client env-et is frissíteni kell, és új revision kell.
-
-A **client** URL-t oszd meg / nyisd meg a böngészőben.
+Ha a client **Ready**, a Console a client URL-jét is mutatja. **Ezt** nyisd meg / oszd meg. (A server URL a böngészőbe nem kell — azt már az `API_URL` viszi.)
 
 ### Mit látsz a felületen
 
@@ -541,7 +539,7 @@ A modell globális, a RAG Engine regionális.
 ### Dockerfile-ok
 
 - `server/Dockerfile` — Python 3.12 + `uv sync` + uvicorn. A Cloud Run a `PORT` változót adja.
-- `client/Dockerfile` — nginx a 8080-as porton (Cloud Run alapértelmezése), ami a statikus fájlokat szolgálja ki, és belerakja az `API_URL`-t a `config.js`-be.
+- `client/Dockerfile` — nginx, 8080-as port. Induláskor a `docker-entrypoint.sh` az `API_URL` env-ből megírja a `config.js`-t, hogy a böngésző tudja a server címét.
 
 ---
 
@@ -580,8 +578,16 @@ gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
 **`403` a dokumentum megnyitásakor**  
 A server olvassa a `gs://` fájlt. Helyben az ADC-s fióknak, Cloud Run-on a `rag-app-server` SA-nak kell `roles/storage.objectViewer` (vagy Owner). Futtasd újra: `./scripts/setup-gcp.sh`
 
-**`403` / `PermissionDenied` az LLM-en vagy a RAG-on**  
-Helyben a **felhasználódnak** kell `roles/aiplatform.user` (vagy Owner). Cloud Run-on a `rag-app-server` SA-nak — futtasd újra a `setup-gcp` scriptet.
+**`403` / `PermissionDenied` az LLM-en, a RAG-on vagy a rankeren**  
+Helyben a **felhasználódnak** kell `roles/aiplatform.user` (vagy Owner). Cloud Run-on a `rag-app-server` SA-nak kell `roles/aiplatform.user` **és** `roles/discoveryengine.viewer` (a `semantic-ranker` miatt). Futtasd újra a `setup-gcp` scriptet, vagy:
+
+```bash
+gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
+  --member="serviceAccount:rag-app-server@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com" \
+  --role="roles/discoveryengine.viewer"
+```
+
+Utána a chatet küldd újra — Cloud Run újratelepítés nem kell.
 
 **`429` / `RESOURCE_EXHAUSTED`**  
 Nem kódhiba: a projekt **kvótája vagy a modell kapacitása** betelt. Gyakori új projektnél és az újabb Flash modelleknél (`gemini-3.8-flash`).
@@ -604,7 +610,7 @@ gcloud services enable discoveryengine.googleapis.com
 ```
 
 **A client „nem sikerült elérni a servert”**  
-Helyben fusson a 8080-as server. Cloud Run-on a client `API_URL` a server **https** URL-je legyen, slash nélkül a végén. A client env változása után új revision kell (a Console-ban Edit & deploy new revision, vagy egy git push).
+Helyben fusson a 8080-as server. Cloud Run-on a client `API_URL` a server **https** URL-je legyen, slash nélkül a végén.
 
 **Cloud Run Overview: nincs Create service**  
 Üres projektben **Connect repository** a belépő (nem Deploy container). A Create service a következő oldal.
@@ -636,7 +642,7 @@ A RAG Engine Python SDK experimental. A server ezt a figyelmeztetést elnyeli; h
 
 | Mac / Linux | Windows | Mit csinál |
 | --- | --- | --- |
-| `./scripts/setup-gcp.sh` | `.\scripts\setup-gcp.ps1` | API, SA, IAM, Artifact Registry |
+| `./scripts/setup-gcp.sh` | `.\scripts\setup-gcp.ps1` | API, SA, IAM — újra futtatható, a hiányzókat pótolja |
 | `./scripts/run-local.sh` | `.\scripts\run-local.ps1` | Helyi client + server |
 | `./scripts/run-local-docker.sh` | `.\scripts\run-local-docker.ps1` | Ugyanez Dockerben |
 | `./scripts/deploy.sh` | `.\scripts\deploy.ps1` | Opcionális CLI deploy (a képzésen a Console a lényeg) |
