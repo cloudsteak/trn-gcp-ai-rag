@@ -7,15 +7,25 @@ A felhasználó bejelentkezés nélkül chatelhet. A válaszokat a Google Cloud 
 A chat üzenetek **streamelve** jönnek: a válasz szóról szóra jelenik meg, ahogy a modell írja.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "16px", "lineColor": "#334155"}, "flowchart": {"curve": "basis", "padding": 12}}}%%
 flowchart LR
-  client["1. Client<br/>böngésző"]
-  server["2. Server<br/>FastAPI"]
-  llm["3a. LLM<br/>Gemini 3.5 Flash-Lite<br/>global"]
-  rag["3b. RAG Engine<br/>europe-west1"]
+  client(["1. Client<br/>böngésző"]) -->|"HTTP SSE"| server(["2. Server<br/>FastAPI"])
+  server --> llm(["3a. LLM<br/>Gemini 3.5 Flash-Lite<br/>global"])
+  server --> rag(["3b. RAG Engine<br/>europe-west1"])
 
-  client -->|"HTTP SSE"| server
-  server --> llm
-  server --> rag
+  classDef ui fill:#38bdf8,stroke:#0369a1,stroke-width:3px,color:#0f172a
+  classDef app fill:#fbbf24,stroke:#b45309,stroke-width:3px,color:#0f172a
+  classDef model fill:#c084fc,stroke:#6d28d9,stroke-width:3px,color:#0f172a
+  classDef docs fill:#34d399,stroke:#047857,stroke-width:3px,color:#0f172a
+
+  class client ui
+  class server app
+  class llm model
+  class rag docs
+
+  linkStyle 0 stroke:#0369a1,stroke-width:3px
+  linkStyle 1 stroke:#6d28d9,stroke-width:3px
+  linkStyle 2 stroke:#047857,stroke-width:3px
 ```
 
 | Réteg | Hol fut | Mi a feladata |
