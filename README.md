@@ -2,6 +2,23 @@
 
 Kiegészítő segédlet a Mentor Klub "AI a céges dokumentációban - RAG alapok kezdőknek" című képzéséhez.
 
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "16px", "lineColor": "#334155"}, "flowchart": {"curve": "basis", "padding": 12}}}%%
+flowchart LR
+  A(["Docling<br/>dokumentum-előkészítés"]) --> B(["Vektor DB / pipeline"])
+  B --> C(["rag-app<br/>chat + RAG Engine"])
+
+  classDef prep fill:#fb923c,stroke:#c2410c,stroke-width:3px,color:#0f172a
+  classDef store fill:#34d399,stroke:#047857,stroke-width:3px,color:#0f172a
+  classDef app fill:#c084fc,stroke:#6d28d9,stroke-width:3px,color:#0f172a
+
+  class A prep
+  class B store
+  class C app
+
+  linkStyle 0 stroke:#c2410c,stroke-width:3px
+  linkStyle 1 stroke:#6d28d9,stroke-width:3px
+```
 
 ## Vektor adatbázis
 

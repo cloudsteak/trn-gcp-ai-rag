@@ -61,6 +61,13 @@ SYSTEM_PROMPT_RAG = (
     "Csak akkor mondd, hogy nincs információ, ha egyik részlet sem magyarázza a fogalmat."
 )
 
+SYSTEM_PROMPT_SMALLTALK = (
+    "Te egy céges dokumentum-asszisztens vagy. Magyarul, röviden válaszolj. "
+    "A felhasználó most nem új kérdést tett fel (köszönés, köszönet, oké). "
+    "Egy-két udvarias mondat elég. Ne ismételd az előző magyarázatot, "
+    "ne kezdj új témát, és ne hivatkozz dokumentumokra."
+)
+
 SYSTEM_PROMPT_LLM = (
     "Te egy segítőkész asszisztens vagy. Magyarul, röviden válaszolj. "
     "A RAG ki van kapcsolva: nincsenek céges dokumentumok. "
@@ -97,6 +104,21 @@ def quota_message() -> str:
         f"(modell: {config.LLM_MODEL}). Várj 30–60 másodpercet, és küldd újra. "
         "Képzésen a gemini-3.5-flash-lite szokott menni; az újabb Flash modelleknek "
         "kisebb a kvótája. Console: IAM & Admin → Quotas → generate_content."
+    )
+
+
+def is_smalltalk(message: str) -> bool:
+    """Köszönöm / oké / szia: ne fusson RAG-keresés, különben random doksi jön vissza."""
+    return bool(
+        re.match(
+            r"(?is)^\s*("
+            r"köszönöm(\s+szépen)?|köszi(\s+szépen)?|koszi|thanks|thx|thank you|"
+            r"oké?|oke|rendben|jó|persze|igen|nem|aha|"
+            r"szia|helló|hello|szevasz|jó\s+napot|jó\s+reggelt|viszlát|bye|"
+            r"szuper|tökéletes|király|nagyszerű"
+            r")[\s!.?]*$",
+            message.strip(),
+        )
     )
 
 
@@ -361,7 +383,17 @@ def chat(req: ChatRequest):
 
             chunks = []
             cited = []
-            if req.use_rag:
+            smalltalk = is_smalltalk(req.message)
+            if req.use_rag and smalltalk:
+                yield sse(
+                    "debug",
+                    {
+                        "kind": "rag",
+                        "title": "RAG kihagyva: ez nem dokumentumkérdés",
+                        "detail": {"skipped": True, "reason": "smalltalk", "message": req.message},
+                    },
+                )
+            elif req.use_rag:
                 if not config.RAG_CORPUS:
                     yield sse(
                         "debug",
@@ -424,8 +456,13 @@ def chat(req: ChatRequest):
                     },
                 )
 
-            user_text = build_user_text(req.message, chunks if req.use_rag else None)
-            system_prompt = SYSTEM_PROMPT_RAG if req.use_rag else SYSTEM_PROMPT_LLM
+            user_text = build_user_text(req.message, chunks if req.use_rag and not smalltalk else None)
+            if not req.use_rag:
+                system_prompt = SYSTEM_PROMPT_LLM
+            elif smalltalk:
+                system_prompt = SYSTEM_PROMPT_SMALLTALK
+            else:
+                system_prompt = SYSTEM_PROMPT_RAG
             llm_config = genai_types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(

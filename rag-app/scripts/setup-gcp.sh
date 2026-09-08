@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# GCP előkészítés: API-k, Artifact Registry, service accountok, IAM.
-# Ezt EGYSZER kell futtatni egy projekten, a Cloud Run (Console) előtt.
+# GCP előkészítés / pótlás: API-k, service accountok, IAM.
+# Nyugodtan futtasd újra: ami megvan, azt kihagyja; ami hiányzik, azt berakja.
+# Saját Artifact Registry tárat NEM hoz létre: a Console Cloud Build a sajátját használja.
 set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/load-env.sh"
 
 echo "Projekt: $GOOGLE_CLOUD_PROJECT"
 echo "Régió:   $GOOGLE_CLOUD_LOCATION"
+echo "A hiányzó beállításokat pótolja, a meglévőket nem bántja."
 gcloud config set project "$GOOGLE_CLOUD_PROJECT"
 
 echo
@@ -22,21 +24,8 @@ gcloud services enable \
   cloudresourcemanager.googleapis.com \
   serviceusage.googleapis.com
 
-echo
-echo "2) Artifact Registry tárhely a Docker image-eknek"
-if gcloud artifacts repositories describe "$ARTIFACT_REGISTRY_REPO" \
-    --location="$GOOGLE_CLOUD_LOCATION" >/dev/null 2>&1; then
-  echo "   Már létezik: $ARTIFACT_REGISTRY_REPO"
-else
-  gcloud artifacts repositories create "$ARTIFACT_REGISTRY_REPO" \
-    --repository-format=docker \
-    --location="$GOOGLE_CLOUD_LOCATION" \
-    --description="rag-app Cloud Run image-ek"
-fi
-
 SERVER_SA="${SERVER_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 CLIENT_SA="${CLIENT_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
-BUILD_SA="${BUILD_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 PROJECT_NUMBER="$(gcloud projects describe "$GOOGLE_CLOUD_PROJECT" --format='value(projectNumber)')"
 DEFAULT_BUILD="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
 COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
@@ -49,18 +38,19 @@ create_sa() {
     echo "   Már létezik: $email"
   else
     gcloud iam service-accounts create "$name" --display-name="$display"
+    echo "   Létrehozva: $email"
   fi
 }
 
 echo
-echo "3) Service accountok"
+echo "2) Service accountok"
 create_sa "$SERVER_SA" "rag-app server (LLM + RAG)"
 create_sa "$CLIENT_SA" "rag-app client"
-create_sa "$BUILD_SA" "rag-app Cloud Build"
 
 bind_project() {
   local member="$1"
   local role="$2"
+  echo "   $role  →  $member"
   gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
     --member="serviceAccount:${member}" \
     --role="$role" \
@@ -69,15 +59,16 @@ bind_project() {
 }
 
 echo
-echo "4) Jogosultságok (IAM)"
-echo "   Server SA: Agent Platform (LLM + RAG) hívása + dokumentumok olvasása"
+echo "3) Jogosultságok (IAM) — a hiányzó szerepek felkerülnek"
+echo "   Server SA: Agent Platform (LLM + RAG), ranker, dokumentumok"
 bind_project "$SERVER_SA" "roles/aiplatform.user"
+bind_project "$SERVER_SA" "roles/discoveryengine.viewer"
 bind_project "$SERVER_SA" "roles/logging.logWriter"
 bind_project "$SERVER_SA" "roles/storage.objectViewer"
 bind_project "$CLIENT_SA" "roles/logging.logWriter"
 
-echo "   Build SA + alap Cloud Build SA: image build és Cloud Run deploy"
-for sa in "$BUILD_SA" "$DEFAULT_BUILD" "$COMPUTE_SA"; do
+echo "   Alap Cloud Build / Compute SA: image build és Cloud Run deploy"
+for sa in "$DEFAULT_BUILD" "$COMPUTE_SA"; do
   bind_project "$sa" "roles/run.admin"
   bind_project "$sa" "roles/artifactregistry.writer"
   bind_project "$sa" "roles/logging.logWriter"
@@ -85,9 +76,9 @@ for sa in "$BUILD_SA" "$DEFAULT_BUILD" "$COMPUTE_SA"; do
   bind_project "$sa" "roles/storage.objectAdmin"
 done
 
-echo "   A build service account impersonálhatja a runtime SA-kat"
+echo "   A Cloud Build impersonálhatja a runtime SA-kat"
 for runtime in "$SERVER_SA" "$CLIENT_SA"; do
-  for actor in "$BUILD_SA" "$DEFAULT_BUILD" "$COMPUTE_SA"; do
+  for actor in "$DEFAULT_BUILD" "$COMPUTE_SA"; do
     gcloud iam service-accounts add-iam-policy-binding "$runtime" \
       --member="serviceAccount:${actor}" \
       --role="roles/iam.serviceAccountUser" \
@@ -96,12 +87,11 @@ for runtime in "$SERVER_SA" "$CLIENT_SA"; do
 done
 
 echo
-echo "Kész. Következő lépések:"
-echo "  - Helyi futtatás:  ./scripts/run-local.sh"
-echo "  - Cloud Run:       Console → Cloud Run → Create service"
-echo "                     (a Cloud Buildet a varázsló állítja be; cloudbuild.yaml nincs)"
+echo "Kész. Ami hiányzott, az most bent van."
+echo "  Ha a Cloud Run client már megy: várj ~20 mp, küldd újra a kérdést. Új deploy nem kell."
+echo "  Ha még helyben vagy:  ./scripts/run-local.sh"
+echo "  Ha még nincs Cloud Run: Console → Connect repository (először server, aztán client)"
 echo
 echo "Service accountok:"
 echo "  server: $SERVER_SA"
 echo "  client: $CLIENT_SA"
-echo "  build:  $BUILD_SA"
