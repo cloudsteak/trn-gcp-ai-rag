@@ -6,7 +6,7 @@ gcloud config set project $env:GOOGLE_CLOUD_PROJECT
 
 $ServerSa = "$($env:SERVER_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 $ClientSa = "$($env:CLIENT_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
-$BuildSa = "$($env:BUILD_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
+$BuildSa = "rag-app-build@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 
 Write-Host "1) Cloud Run szolgáltatások törlése"
 gcloud run services delete $env:CLOUD_RUN_CLIENT_NAME --region $env:GOOGLE_CLOUD_LOCATION --quiet

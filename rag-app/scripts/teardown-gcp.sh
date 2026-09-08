@@ -10,7 +10,8 @@ gcloud config set project "$GOOGLE_CLOUD_PROJECT"
 
 SERVER_SA="${SERVER_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 CLIENT_SA="${CLIENT_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
-BUILD_SA="${BUILD_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
+# Korábbi setup még létrehozhatta; ha nincs, a delete csendben kihagyja.
+BUILD_SA="rag-app-build@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 
 echo "1) Cloud Run szolgáltatások törlése"
 gcloud run services delete "$CLOUD_RUN_CLIENT_NAME" \
