@@ -85,9 +85,9 @@ foreach ($runtime in @($ServerSa, $ClientSa)) {
 }
 
 Write-Host ""
-Write-Host "Kész. Következő lépés: Console → Cloud Run → Connect repository"
-Write-Host "  1) rag-app-server"
-Write-Host "  2) rag-app-client (API_URL = a server URL)"
+Write-Host "Kész. Következő lépések:"
+Write-Host "  - Helyi futtatás:  .\scripts\run-local.ps1"
+Write-Host "  - Utána Cloud Run: Console → Connect repository (először server, aztán client)"
 Write-Host ""
 Write-Host "Service accountok:"
 Write-Host "  server: $ServerSa"

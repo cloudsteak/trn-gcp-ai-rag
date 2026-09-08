@@ -94,9 +94,9 @@ for runtime in "$SERVER_SA" "$CLIENT_SA"; do
 done
 
 echo
-echo "Kész. Következő lépés: Console → Cloud Run → Connect repository"
-echo "  1) rag-app-server"
-echo "  2) rag-app-client (API_URL = a server URL)"
+echo "Kész. Következő lépések:"
+echo "  - Helyi futtatás:  ./scripts/run-local.sh"
+echo "  - Utána Cloud Run: Console → Connect repository (először server, aztán client)"
 echo
 echo "Service accountok:"
 echo "  server: $SERVER_SA"
