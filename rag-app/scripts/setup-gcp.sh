@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # GCP előkészítés: API-k, Artifact Registry, service accountok, IAM.
-# Ezt EGYSZER kell futtatni egy projekten, a deploy / Cloud Build előtt.
+# Ezt EGYSZER kell futtatni egy projekten, a Cloud Run (Console) előtt.
 set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/load-env.sh"
@@ -98,8 +98,8 @@ done
 echo
 echo "Kész. Következő lépések:"
 echo "  - Helyi futtatás:  ./scripts/run-local.sh"
-echo "  - Deploy:          ./scripts/deploy.sh"
-echo "  - Cloud Build triggert a Console-ban állítsd be (Dockerfile van, cloudbuild.yaml nincs)."
+echo "  - Cloud Run:       Console → Cloud Run → Create service"
+echo "                     (a Cloud Buildet a varázsló állítja be; cloudbuild.yaml nincs)"
 echo
 echo "Service accountok:"
 echo "  server: $SERVER_SA"

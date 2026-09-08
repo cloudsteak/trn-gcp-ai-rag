@@ -41,11 +41,10 @@ Helyi bejelentkezés: **ADC** (Application Default Credentials) — lásd lent.
 7. [Helyi Google-bejelentkezés (ADC)](#7-helyi-google-bejelentkezés-adc)
 8. [GCP előkészítés (service account, API-k)](#8-gcp-előkészítés-service-account-api-k)
 9. [Futtatás a saját gépen](#9-futtatás-a-saját-gépen)
-10. [Feltöltés Cloud Run-ra](#10-feltöltés-cloud-run-ra)
-11. [Cloud Build kézi beállítása](#11-cloud-build-kézi-beállítása)
-12. [Minden törlése](#12-minden-törlése)
-13. [Hogyan működik a kód](#13-hogyan-működik-a-kód)
-14. [Ha valami nem megy](#14-ha-valami-nem-megy)
+10. [Cloud Run a Console-ban](#10-cloud-run-a-console-ban)
+11. [Minden törlése](#11-minden-törlése)
+12. [Hogyan működik a kód](#12-hogyan-működik-a-kód)
+13. [Ha valami nem megy](#13-ha-valami-nem-megy)
 
 ---
 
@@ -54,7 +53,7 @@ Helyi bejelentkezés: **ADC** (Application Default Credentials) — lásd lent.
 - A **RAG corpust nem ez az app hozza létre.** A képzésen azt már kézzel beállítottátok. Ide csak a corpus **teljes nevét** kell beírni.
 - A clientnek **nincs jelszava**. Aki ismeri a Cloud Run URL-t, az chatelhet. Ez demóra való, nyilvános céges adatra ne tedd.
 - A `gemini-3.5-flash-lite` **globális** modell: a Cloud Run `europe-west1`-ben van, a modellhívás `global` végpontra megy. Ez így van kitalálva.
-- A Cloud Build triggert **te állítod be a Console-ban**. A kódban csak `Dockerfile` van, `cloudbuild.yaml` szándékosan nincs.
+- A Cloud Run szolgáltatást **a Console-ban hozod létre**. A létrehozáskor a varázsló beállítja a **Cloud Buildet** (git push → új image → új Cloud Run verzió). A kódban csak `Dockerfile` van, `cloudbuild.yaml` szándékosan nincs.
 - Mac-en, Windows-on és Linuxon is megy. A bemutató Mac-en készült.
 
 ---
@@ -71,7 +70,10 @@ Földrajzi hely, ahol a Cloud Run és a RAG Engine fut (Belgium). A modell ettő
 Helyben a programok nem egy jelszavas kulcsfájlt használnak, hanem a `gcloud auth application-default login` után a gépen maradó belépést. Cloud Run-on ugyanezt a **service account** helyettesíti.
 
 **Cloud Run**  
-Google-ös „tedd ide a konténert, mi futtatjuk HTTPS-en”. Két szolgáltatás lesz: `rag-app-client` és `rag-app-server`.
+Google-ös „tedd ide a konténert, mi futtatjuk HTTPS-en”. Két szolgáltatás lesz: `rag-app-client` és `rag-app-server`. A Console-ban hozod létre őket.
+
+**Cloud Build**  
+A Cloud Run létrehozásakor a Console összeköti a GitHub repót a szolgáltatással. Push után a Build a `Dockerfile` alapján image-et készít, a Run pedig új verziót indít. Külön `cloudbuild.yaml` nem kell.
 
 **Service account**  
 Nem ember, hanem egy technikai felhasználó. A server ezzel hívja az LLM-et és a RAG-ot.
@@ -263,9 +265,9 @@ Cloud Run-on **nincs ADC a te gépedről**: ott a `rag-app-server` service accou
 
 ## 8. GCP előkészítés (service account, API-k)
 
-Ezt **egyszer** futtasd, mielőtt Cloud Run-ra tennéd, vagy mielőtt Cloud Build triggert állítanál.
+Ezt **egyszer** futtasd, mielőtt a Console-ban Cloud Run szolgáltatást hoznál létre.
 
-A script bekapcsolja az API-kat, létrehoz egy Artifact Registry tárat, három service accountot, és kiosztja a jogokat.
+A script bekapcsolja az API-kat (köztük a Cloud Runét és a Cloud Buildét), létrehoz egy Artifact Registry tárat, három service accountot, és kiosztja a jogokat.
 
 **Mac / Linux**
 
@@ -286,9 +288,9 @@ Létrejön:
 | --- | --- |
 | `rag-app-server` | Cloud Run server. Ő hívja a Gemini-t és a RAG Engine-t (`roles/aiplatform.user`). |
 | `rag-app-client` | Cloud Run client (statikus web). |
-| `rag-app-build` | Cloud Build triggerhez (image build + deploy). |
+| `rag-app-build` | Cloud Build: a Console a Cloud Run létrehozásakor ezt (vagy a projekt alap build SA-ját) használja az image készítéséhez. |
 
-A script a projekt **alap** Cloud Build és Compute Engine service accountjainak is ad jogot, hogy a `gcloud run deploy --source` működjön.
+A script a projekt **alap** Cloud Build és Compute Engine service accountjainak is ad jogot, hogy a Console-ból (és opcionálisan a `deploy` scriptből) menjen a build.
 
 ---
 
@@ -347,88 +349,92 @@ Próbakérdés (ha a cafeteria szabályzat bent van a corpusban): *„Hány cafe
 
 ---
 
-## 10. Feltöltés Cloud Run-ra
+## 10. Cloud Run a Console-ban
 
-Előfeltétel: 6–8. lépés kész, a `.env` ki van töltve.
+Előfeltétel: 6–8. lépés kész, a kód **fent van GitHubon** (a Console onnan buildel, nem a laptopodról).
 
-Ez a script **cloudbuild.yaml nélkül** buildel: a `gcloud run deploy --source` a mappa `Dockerfile`-ját adja a Cloud Buildnek.
+A képzésen **nem** a `deploy.sh` a lényeg. Bemész a Console **Cloud Run** oldalára, kézzel létrehozod a két szolgáltatást, és **eközben** állítod be a Cloud Buildet. Nincs `cloudbuild.yaml`.
 
-**Mac / Linux**
+Sorrend: **először a server**, mert a clientnek kell a server URL-je (`API_URL`).
 
-```bash
-./scripts/deploy.sh
-```
-
-**Windows**
-
-```powershell
-.\scripts\deploy.ps1
-```
-
-A végén két URL-t ír ki. A **client** URL-t oszd meg / nyisd meg. A server URL-t a client automatikusan megkapja (`API_URL`).
+A két szolgáltatás **bejelentkezés nélkül** hívható. Ez a labor része.
 
 Első alkalommal a build 3–8 perc is lehet.
 
-A két szolgáltatás **bejelentkezés nélkül** hívható (`--allow-unauthenticated`). Ez a labor része.
+### 10.1 Server (`rag-app-server`)
 
----
-
-## 11. Cloud Build kézi beállítása
-
-Ha nem a `deploy` scriptet akarod, hanem a Console-ban triggert (git push → új verzió):
-
-Nincs `cloudbuild.yaml`. Két trigger kell, mert két image van.
-
-### Közös
-
-1. Console → **Cloud Build** → **Triggers** → **Create trigger**.
-2. Event: Push to a branch (pl. `main`).
-3. Repository: ez a GitHub repo (Cloud Build GitHub app csatlakoztatása, ha még nincs).
-4. **Configuration**: Dockerfile (ne Cloud Build configuration file).
-5. Service account: `rag-app-build@PROJEKT.iam.gserviceaccount.com` (a setup script hozta létre). Ha a lista üres, a Cloud Build Settingsben engedd a felhasználói SA-kat.
-
-### Server trigger
+1. Console → **Cloud Run** → **Create service** (Szolgáltatás létrehozása).
+2. Forrás: **Continuously deploy from a repository** (folyamatos telepítés repóból) → **Set up with Cloud Build**.
+3. Csatlakoztasd a **GitHub** repót (ha a Cloud Build GitHub app még nincs fent, a varázsló végigvisz). Branch: pl. `main`.
+4. **Build type**: Dockerfile — **ne** Cloud Build configuration file.
+5. Dockerfile / forráskönyvtár (context): `rag-app/server`  
+   (a `Dockerfile` ebben a mappában van.)
+6. Cloud Build service account, ha kérdezi: `rag-app-build@PROJEKT_ID.iam.gserviceaccount.com`  
+   Ha a lista üres: Cloud Build → **Settings** → engedd a felhasználói service accountokat, aztán gyere vissza.
+7. A szolgáltatás beállításai:
 
 | Mező | Érték |
 | --- | --- |
-| Name | `rag-app-server` |
-| Dockerfile | `rag-app/server/Dockerfile` |
-| Dockerfile directory (context) | `rag-app/server` |
-| Image | `europe-west1-docker.pkg.dev/PROJEKT_ID/rag-app/server:latest` |
+| Service name | `rag-app-server` |
+| Region | `europe-west1` |
+| Authentication | Allow unauthenticated invocations |
+| Service account | `rag-app-server@PROJEKT_ID.iam.gserviceaccount.com` |
+| Memory | 1 GiB |
+| CPU | 1 |
+| Request timeout | 300 másodperc |
+| Env változók | lásd a táblázatot alább |
 
-Utána Console → Cloud Run → `rag-app-server` (elsőre hozd létre a szolgáltatást a deploy scripttel, vagy kézzel ugyanebből az image-ből):
+Env (ugyanazok, mint a `.env`-ben):
 
-- Region: `europe-west1`
-- Service account: `rag-app-server@...`
-- Authentication: Allow unauthenticated
-- Env változók: ugyanazok, mint a `.env`-ben (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `LLM_LOCATION`, `LLM_MODEL`, `RAG_CORPUS`, `RAG_TOP_K`, `RAG_RANKER`)
-- Memory: 1 GiB, timeout: 300s
+| Név | Honnan |
+| --- | --- |
+| `GOOGLE_CLOUD_PROJECT` | a projekt ID |
+| `GOOGLE_CLOUD_LOCATION` | `europe-west1` |
+| `LLM_LOCATION` | `global` |
+| `LLM_MODEL` | pl. `gemini-3.5-flash-lite` |
+| `RAG_CORPUS` | a corpus teljes erőforrásneve |
+| `RAG_TOP_K` | pl. `10` |
+| `RAG_RANKER` | `semantic-ranker-default@latest` |
 
-### Client trigger
+8. **Create**. Várd meg, amíg a Build lefut és a szolgáltatás **Ready**.
+9. A szolgáltatás tetején másold ki az URL-t (`https://rag-app-server-….run.app`) — ez kell a clientnek.
+
+### 10.2 Client (`rag-app-client`)
+
+Ugyanaz a varázsló, másik mappa és env:
 
 | Mező | Érték |
 | --- | --- |
-| Name | `rag-app-client` |
-| Dockerfile | `rag-app/client/Dockerfile` |
-| Context | `rag-app/client` |
-| Image | `europe-west1-docker.pkg.dev/PROJEKT_ID/rag-app/client:latest` |
+| Service name | `rag-app-client` |
+| Dockerfile / context | `rag-app/client` |
+| Region | `europe-west1` |
+| Authentication | Allow unauthenticated invocations |
+| Service account | `rag-app-client@PROJEKT_ID.iam.gserviceaccount.com` |
+| Memory | 256 MiB |
+| CPU | 1 |
+| Request timeout | 60 másodperc |
+| Env | `API_URL` = a **server** Cloud Run URL-je, **slash nélkül** a végén |
 
-Cloud Run `rag-app-client`:
+A client konténer indításkor az `API_URL`-ből kiír egy `config.js` fájlt. Ha a server URL később változik, a client env-et is frissíteni kell, és új revision kell.
 
-- Service account: `rag-app-client@...`
-- Allow unauthenticated
-- Env: `API_URL` = a **server** Cloud Run URL-je (https://rag-app-server-….run.app)
-- Memory: 256 MiB
+A **client** URL-t oszd meg / nyisd meg a böngészőben.
 
-A client konténer indításkor a `API_URL`-ből kiír egy `config.js` fájlt. Ha a server URL változik, a client env-et is frissíteni kell.
+Git push a kiválasztott branchre → Cloud Build újraépít → Cloud Run új verzió. A trigger a szolgáltatás mellett jön létre, nem kell külön a Cloud Build → Triggers oldalon kézzel felvenni.
+
+### 10.3 Opcionális: parancssorból
+
+Ha nem a Console-t akarod, a script ugyanazt a két szolgáltatást `gcloud run deploy --source`-szal rakja fel (a Cloud Buildet a `gcloud` hívja).
+
+**Mac / Linux:** `./scripts/deploy.sh`  
+**Windows:** `.\scripts\deploy.ps1`
 
 ---
 
-## 12. Minden törlése
+## 11. Minden törlése
 
 Ez törli a két Cloud Run szolgáltatást, az Artifact Registry tárat (image-ekkel) és a három service accountot.
 
-**Nem törli:** a Google Cloud projektet, a bekapcsolt API-kat, a számlázást, és a **kézzel létrehozott RAG corpust**.
+**Nem törli:** a Google Cloud projektet, a bekapcsolt API-kat, a számlázást, a **kézzel létrehozott RAG corpust**, és a Console által felvett **Cloud Build triggereket**. A triggereket: Console → Cloud Build → Triggers.
 
 **Mac / Linux**
 
@@ -444,7 +450,7 @@ Ez törli a két Cloud Run szolgáltatást, az Artifact Registry tárat (image-e
 
 ---
 
-## 13. Hogyan működik a kód
+## 12. Hogyan működik a kód
 
 Keveset kell olvasni. Kezdd itt:
 
@@ -452,7 +458,7 @@ Keveset kell olvasni. Kezdd itt:
 rag-app/
   client/          ← 1. réteg (HTML + CSS + JS, nincs npm)
   server/          ← 2. réteg (FastAPI, Python)
-  scripts/         ← setup / deploy / teardown / helyi futtatás
+  scripts/         ← setup / helyi futtatás / opcionális CLI deploy / teardown
   .env.example     ← ezt másolod .env-re
 ```
 
@@ -490,7 +496,7 @@ A modell globális, a RAG Engine regionális.
 
 ---
 
-## 14. Ha valami nem megy
+## 13. Ha valami nem megy
 
 **`GOOGLE_CLOUD_PROJECT még nincs kitöltve`**  
 A `.env` a `rag-app` mappában van? Nem az example-t szerkeszted?
@@ -549,7 +555,13 @@ gcloud services enable discoveryengine.googleapis.com
 ```
 
 **A client „nem sikerült elérni a servert”**  
-Helyben fusson a 8080-as server. Cloud Run-on a client `API_URL` a server **https** URL-je legyen, slash nélkül a végén.
+Helyben fusson a 8080-as server. Cloud Run-on a client `API_URL` a server **https** URL-je legyen, slash nélkül a végén. A client env változása után új revision kell (a Console-ban Edit & deploy new revision, vagy egy git push).
+
+**Cloud Run Create service / GitHub nem jelenik meg**  
+A Cloud Build GitHub appot a projektnek engedélyezni kell. A varázsló **Set up with Cloud Build** lépése visz oda. A kód legyen fent a kiválasztott branchen.
+
+**Cloud Build service account lista üres**  
+Console → Cloud Build → **Settings** → User-specified service accounts. A `setup-gcp` script létrehozta a `rag-app-build` SA-t.
 
 **Windows: `uv` / `gcloud` nem parancs**  
 Új PowerShell ablak a telepítés után. PATH.
@@ -575,5 +587,5 @@ A RAG Engine Python SDK experimental. A server ezt a figyelmeztetést elnyeli; h
 | `./scripts/setup-gcp.sh` | `.\scripts\setup-gcp.ps1` | API, SA, IAM, Artifact Registry |
 | `./scripts/run-local.sh` | `.\scripts\run-local.ps1` | Helyi client + server |
 | `./scripts/run-local-docker.sh` | `.\scripts\run-local-docker.ps1` | Ugyanez Dockerben |
-| `./scripts/deploy.sh` | `.\scripts\deploy.ps1` | Cloud Run |
+| `./scripts/deploy.sh` | `.\scripts\deploy.ps1` | Opcionális CLI deploy (a képzésen a Console a lényeg) |
 | `./scripts/teardown-gcp.sh` | `.\scripts\teardown-gcp.ps1` | Labor erőforrásainak törlése |

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Feltölti a servert és a clientet Cloud Run-ra (gcloud run deploy --source).
+# Opcionális: a képzésen a Console Cloud Run varázsló a lényeg.
 # A Cloud Build-et a gcloud hívja meg, cloudbuild.yaml nem kell.
 set -euo pipefail
 

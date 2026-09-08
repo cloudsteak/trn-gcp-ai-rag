@@ -1,4 +1,5 @@
-# Feltölti a servert és a clientet Cloud Run-ra.
+# Feltölti a servert és a clientet Cloud Run-ra (gcloud run deploy --source).
+# Opcionális: a képzésen a Console Cloud Run varázsló a lényeg.
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\load-env.ps1"
 
