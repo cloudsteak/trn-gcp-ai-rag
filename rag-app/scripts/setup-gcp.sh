@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# GCP előkészítés: API-k, Artifact Registry, service accountok, IAM.
-# Ezt EGYSZER kell futtatni egy projekten, a Cloud Run (Console) előtt.
+# GCP előkészítés / pótlás: API-k, Artifact Registry, service accountok, IAM.
+# Nyugodtan futtasd újra: ami megvan, azt kihagyja; ami hiányzik (pl. ranker jog), azt berakja.
 set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/load-env.sh"
 
 echo "Projekt: $GOOGLE_CLOUD_PROJECT"
 echo "Régió:   $GOOGLE_CLOUD_LOCATION"
+echo "A hiányzó beállításokat pótolja, a meglévőket nem bántja."
 gcloud config set project "$GOOGLE_CLOUD_PROJECT"
 
 echo
@@ -48,6 +49,7 @@ create_sa() {
     echo "   Már létezik: $email"
   else
     gcloud iam service-accounts create "$name" --display-name="$display"
+    echo "   Létrehozva: $email"
   fi
 }
 
@@ -59,6 +61,7 @@ create_sa "$CLIENT_SA" "rag-app client"
 bind_project() {
   local member="$1"
   local role="$2"
+  echo "   $role  →  $member"
   gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
     --member="serviceAccount:${member}" \
     --role="$role" \
@@ -67,9 +70,10 @@ bind_project() {
 }
 
 echo
-echo "4) Jogosultságok (IAM)"
-echo "   Server SA: Agent Platform (LLM + RAG) hívása + dokumentumok olvasása"
+echo "4) Jogosultságok (IAM) — a hiányzó szerepek felkerülnek"
+echo "   Server SA: Agent Platform (LLM + RAG), ranker, dokumentumok"
 bind_project "$SERVER_SA" "roles/aiplatform.user"
+bind_project "$SERVER_SA" "roles/discoveryengine.viewer"
 bind_project "$SERVER_SA" "roles/logging.logWriter"
 bind_project "$SERVER_SA" "roles/storage.objectViewer"
 bind_project "$CLIENT_SA" "roles/logging.logWriter"
@@ -94,9 +98,10 @@ for runtime in "$SERVER_SA" "$CLIENT_SA"; do
 done
 
 echo
-echo "Kész. Következő lépések:"
-echo "  - Helyi futtatás:  ./scripts/run-local.sh"
-echo "  - Utána Cloud Run: Console → Connect repository (először server, aztán client)"
+echo "Kész. Ami hiányzott, az most bent van."
+echo "  Ha a Cloud Run client már megy: várj ~20 mp, küldd újra a kérdést. Új deploy nem kell."
+echo "  Ha még helyben vagy:  ./scripts/run-local.sh"
+echo "  Ha még nincs Cloud Run: Console → Connect repository (először server, aztán client)"
 echo
 echo "Service accountok:"
 echo "  server: $SERVER_SA"

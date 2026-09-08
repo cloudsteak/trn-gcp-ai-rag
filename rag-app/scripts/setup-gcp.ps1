@@ -1,9 +1,11 @@
-# GCP előkészítés: API-k, Artifact Registry, service accountok, IAM.
+# GCP előkészítés / pótlás: API-k, Artifact Registry, service accountok, IAM.
+# Nyugodtan futtasd újra: ami megvan, azt kihagyja; ami hiányzik, azt berakja.
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\load-env.ps1"
 
 Write-Host "Projekt: $($env:GOOGLE_CLOUD_PROJECT)"
 Write-Host "Régió:   $($env:GOOGLE_CLOUD_LOCATION)"
+Write-Host "A hiányzó beállításokat pótolja, a meglévőket nem bántja."
 gcloud config set project $env:GOOGLE_CLOUD_PROJECT
 
 Write-Host ""
@@ -21,7 +23,7 @@ gcloud services enable `
 
 Write-Host ""
 Write-Host "2) Artifact Registry tárhely a Docker image-eknek"
-$repoCheck = gcloud artifacts repositories describe $env:ARTIFACT_REGISTRY_REPO --location=$env:GOOGLE_CLOUD_LOCATION 2>&1
+gcloud artifacts repositories describe $env:ARTIFACT_REGISTRY_REPO --location=$env:GOOGLE_CLOUD_LOCATION 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
     gcloud artifacts repositories create $env:ARTIFACT_REGISTRY_REPO `
       --repository-format=docker `
@@ -42,6 +44,7 @@ function Create-Sa([string]$Email, [string]$Display) {
     gcloud iam service-accounts describe $Email 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
         gcloud iam service-accounts create $name --display-name="$Display"
+        Write-Host "   Létrehozva: $Email"
     } else {
         Write-Host "   Már létezik: $Email"
     }
@@ -53,6 +56,7 @@ Create-Sa $ServerSa "rag-app server (LLM + RAG)"
 Create-Sa $ClientSa "rag-app client"
 
 function Bind-Project([string]$Member, [string]$Role) {
+    Write-Host "   $Role  →  $Member"
     gcloud projects add-iam-policy-binding $env:GOOGLE_CLOUD_PROJECT `
       --member="serviceAccount:$Member" `
       --role=$Role `
@@ -61,8 +65,9 @@ function Bind-Project([string]$Member, [string]$Role) {
 }
 
 Write-Host ""
-Write-Host "4) Jogosultságok (IAM)"
+Write-Host "4) Jogosultságok (IAM) — a hiányzó szerepek felkerülnek"
 Bind-Project $ServerSa "roles/aiplatform.user"
+Bind-Project $ServerSa "roles/discoveryengine.viewer"
 Bind-Project $ServerSa "roles/logging.logWriter"
 Bind-Project $ServerSa "roles/storage.objectViewer"
 Bind-Project $ClientSa "roles/logging.logWriter"
@@ -85,9 +90,10 @@ foreach ($runtime in @($ServerSa, $ClientSa)) {
 }
 
 Write-Host ""
-Write-Host "Kész. Következő lépések:"
-Write-Host "  - Helyi futtatás:  .\scripts\run-local.ps1"
-Write-Host "  - Utána Cloud Run: Console → Connect repository (először server, aztán client)"
+Write-Host "Kész. Ami hiányzott, az most bent van."
+Write-Host "  Ha a Cloud Run client már megy: várj ~20 mp, küldd újra a kérdést. Új deploy nem kell."
+Write-Host "  Ha még helyben vagy:  .\scripts\run-local.ps1"
+Write-Host "  Ha még nincs Cloud Run: Console → Connect repository (először server, aztán client)"
 Write-Host ""
 Write-Host "Service accountok:"
 Write-Host "  server: $ServerSa"
