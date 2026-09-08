@@ -1,5 +1,6 @@
-# GCP előkészítés / pótlás: API-k, Artifact Registry, service accountok, IAM.
+# GCP előkészítés / pótlás: API-k, service accountok, IAM.
 # Nyugodtan futtasd újra: ami megvan, azt kihagyja; ami hiányzik, azt berakja.
+# Saját Artifact Registry tárat NEM hoz létre: a Console Cloud Build a sajátját használja.
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\load-env.ps1"
 
@@ -21,18 +22,6 @@ gcloud services enable `
   cloudresourcemanager.googleapis.com `
   serviceusage.googleapis.com
 
-Write-Host ""
-Write-Host "2) Artifact Registry tárhely a Docker image-eknek"
-gcloud artifacts repositories describe $env:ARTIFACT_REGISTRY_REPO --location=$env:GOOGLE_CLOUD_LOCATION 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    gcloud artifacts repositories create $env:ARTIFACT_REGISTRY_REPO `
-      --repository-format=docker `
-      --location=$env:GOOGLE_CLOUD_LOCATION `
-      --description="rag-app Cloud Run image-ek"
-} else {
-    Write-Host "   Már létezik: $($env:ARTIFACT_REGISTRY_REPO)"
-}
-
 $ServerSa = "$($env:SERVER_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 $ClientSa = "$($env:CLIENT_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 $ProjectNumber = gcloud projects describe $env:GOOGLE_CLOUD_PROJECT --format="value(projectNumber)"
@@ -51,7 +40,7 @@ function Create-Sa([string]$Email, [string]$Display) {
 }
 
 Write-Host ""
-Write-Host "3) Service accountok"
+Write-Host "2) Service accountok"
 Create-Sa $ServerSa "rag-app server (LLM + RAG)"
 Create-Sa $ClientSa "rag-app client"
 
@@ -65,7 +54,7 @@ function Bind-Project([string]$Member, [string]$Role) {
 }
 
 Write-Host ""
-Write-Host "4) Jogosultságok (IAM) — a hiányzó szerepek felkerülnek"
+Write-Host "3) Jogosultságok (IAM) — a hiányzó szerepek felkerülnek"
 Bind-Project $ServerSa "roles/aiplatform.user"
 Bind-Project $ServerSa "roles/discoveryengine.viewer"
 Bind-Project $ServerSa "roles/logging.logWriter"

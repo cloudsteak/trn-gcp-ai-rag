@@ -267,7 +267,7 @@ Cloud Run-on **nincs ADC a te gépedről**: ott a `rag-app-server` service accou
 
 Ezt futtasd **az első Cloud Run előtt**, és **akkor is újra**, ha hiányzik egy jog (pl. ranker 403). Ami megvan, azt kihagyja; ami hiányzik, azt berakja.
 
-A script bekapcsolja az API-kat, létrehoz Artifact Registry tárat és két service accountot, kiosztja az IAM szerepeket (köztük a `roles/discoveryengine.viewer` ranker jogot).
+A script bekapcsolja az API-kat, létrehozza a két service accountot, kiosztja az IAM szerepeket (köztük a `roles/discoveryengine.viewer` ranker jogot). Saját Artifact Registry tárat **nem** hoz létre: a Console Cloud Build a sajátját használja.
 
 **Mac / Linux**
 
@@ -479,7 +479,7 @@ Ha nem a Console-t akarod, a script ugyanazt a két szolgáltatást `gcloud run 
 
 ## 11. Minden törlése
 
-Ez törli a két Cloud Run szolgáltatást, az Artifact Registry tárat (image-ekkel) és a két runtime service accountot (`rag-app-server`, `rag-app-client`). Ha egy korábbi setup létrehozta a `rag-app-build` SA-t, azt is törli.
+Ez törli a két Cloud Run szolgáltatást és a két runtime service accountot (`rag-app-server`, `rag-app-client`). A Console Cloud Build saját image-tárát nem.
 
 **Nem törli:** a Google Cloud projektet, a bekapcsolt API-kat, a számlázást, a **kézzel létrehozott RAG corpust**, és a Console által felvett **Cloud Build triggereket**. A triggereket: Console → Cloud Build → Triggers.
 
