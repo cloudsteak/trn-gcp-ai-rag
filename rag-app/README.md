@@ -11,7 +11,7 @@ A chat üzenetek **streamelve** jönnek: a válasz szóról szóra jelenik meg, 
 flowchart LR
   client(["1. Client<br/>böngésző"]) -->|"HTTP SSE"| server(["2. Server<br/>FastAPI"])
   server --> llm(["3a. LLM<br/>Gemini 3.5 Flash-Lite<br/>global"])
-  server --> rag(["3b. RAG Engine<br/>europe-west1"])
+  server --> rag(["3b. RAG Engine<br/>europe-west4"])
 
   classDef ui fill:#38bdf8,stroke:#0369a1,stroke-width:3px,color:#0f172a
   classDef app fill:#fbbf24,stroke:#b45309,stroke-width:3px,color:#0f172a
@@ -35,7 +35,7 @@ flowchart LR
 | **3a. LLM** | Google Agent Platform | `gemini-3.5-flash-lite` (globális modell). |
 | **3b. RAG** | Google RAG Engine | A **már létező**, kézzel beállított corpus. |
 
-Alapértelmezett régió: **europe-west1**.  
+Alapértelmezett régió: **europe-west4**.  
 Helyi bejelentkezés: **ADC** (Application Default Credentials) — lásd lent.
 
 ---
@@ -62,18 +62,18 @@ Helyi bejelentkezés: **ADC** (Application Default Credentials) — lásd lent.
 
 - A **RAG corpust nem ez az app hozza létre.** A képzésen azt már kézzel beállítottátok. Ide csak a corpus **teljes nevét** kell beírni.
 - A clientnek **nincs jelszava**. Aki ismeri a Cloud Run URL-t, az chatelhet. Ez demóra való, nyilvános céges adatra ne tedd.
-- A `gemini-3.5-flash-lite` **globális** modell: a Cloud Run `europe-west1`-ben van, a modellhívás `global` végpontra megy. Ez így van kitalálva.
+- A `gemini-3.5-flash-lite` **globális** modell: a Cloud Run `europe-west4`-ben van, a modellhívás `global` végpontra megy. Ez így van kitalálva.
 - A Cloud Run szolgáltatást **a Console-ban** hozod létre: Overview → **Connect repository**, a Create service lapon **Cloud Build** (nem a Developer Connect). Git push → új image → új verzió. A kódban csak `Dockerfile` van, `cloudbuild.yaml` szándékosan nincs.
 - Mac-en, Windows-on és Linuxon is megy. A bemutató Mac-en készült.
 
 ---
 
-## 2. Fogalmak két percben
+## 2. Fogalmak
 
 **Google Cloud projekt**  
 Egy „munkaterület”, aminek van azonosítója (project ID), számlázása, és benne vannak a szolgáltatások. Minden parancs egy projektre vonatkozik.
 
-**Régió (`europe-west1`)**  
+**Régió (`europe-west4`)**  
 Földrajzi hely, ahol a Cloud Run és a RAG Engine fut (Belgium). A modell ettől függetlenül `global`.
 
 **ADC (Application Default Credentials)**  
@@ -225,7 +225,7 @@ Nyisd meg a `.env` fájlt bármilyen szövegszerkesztővel. Minimum ezt a kettő
 
 ```
 GOOGLE_CLOUD_PROJECT=az-igazi-project-id
-RAG_CORPUS=projects/az-igazi-project-id/locations/europe-west1/ragCorpora/A_CORPUS_ID
+RAG_CORPUS=projects/az-igazi-project-id/locations/europe-west4/ragCorpora/A_CORPUS_ID
 ```
 
 ### Hol van a RAG corpus neve?
@@ -236,7 +236,7 @@ RAG_CORPUS=projects/az-igazi-project-id/locations/europe-west1/ragCorpora/A_CORP
 4. A teljes erőforrásnév így néz ki:
 
 ```
-projects/PROJEKT_ID/locations/europe-west1/ragCorpora/1234567890
+projects/PROJEKT_ID/locations/europe-west4/ragCorpora/1234567890
 ```
 
 Másold be **egy sorba**, szóköz nélkül.
@@ -245,7 +245,7 @@ A többi érték hagyható:
 
 | Változó | Alapértelmezés | Jelentés |
 | --- | --- | --- |
-| `GOOGLE_CLOUD_LOCATION` | `europe-west1` | Cloud Run + RAG régió |
+| `GOOGLE_CLOUD_LOCATION` | `europe-west4` | Cloud Run + RAG régió |
 | `LLM_LOCATION` | `global` | A Flash-Lite modell végpontja |
 | `LLM_MODEL` | `gemini-3.5-flash-lite` | Modellnév |
 | `RAG_TOP_K` | `10` | Hány dokumentumrészletet kérünk a vektoros keresésből |
@@ -395,7 +395,7 @@ Első alkalommal a build 3–8 perc is lehet.
 | Mező | Érték |
 | --- | --- |
 | Service name | `rag-app-server` |
-| Region | `europe-west1` |
+| Region | `europe-west4` |
 | Authentication | Allow public access |
 | Auto scaling | minimum `0`, maximum `10` |
 
@@ -425,7 +425,7 @@ Itt add meg a környezeti változókat (ugyanazok, mint a `.env`-ben):
 | Név | Honnan |
 | --- | --- |
 | `GOOGLE_CLOUD_PROJECT` | a projekt ID |
-| `GOOGLE_CLOUD_LOCATION` | `europe-west1` |
+| `GOOGLE_CLOUD_LOCATION` | `europe-west4` |
 | `LLM_LOCATION` | `global` |
 | `LLM_MODEL` | pl. `gemini-3.5-flash-lite` |
 | `RAG_CORPUS` | a corpus teljes erőforrásneve |
@@ -450,7 +450,7 @@ Fent a lapon:
 | Mező | Érték |
 | --- | --- |
 | Service name | `rag-app-client` |
-| Region | `europe-west1` |
+| Region | `europe-west4` |
 | Authentication | Allow public access |
 | Auto scaling | minimum `0`, maximum `10` |
 
@@ -541,7 +541,7 @@ Két Google-kliens van, szándékosan:
 
 ```python
 llm_client = genai.Client(enterprise=True, project=..., location="global")
-rag_client = agentplatform.Client(project=..., location="europe-west1")
+rag_client = agentplatform.Client(project=..., location="europe-west4")
 ```
 
 A modell globális, a RAG Engine regionális.
