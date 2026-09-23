@@ -46,7 +46,7 @@ llm_client = genai.Client(
     location=config.LLM_LOCATION,
 )
 
-# RAG Engine: regionális (alapból europe-west1)
+# RAG Engine: regionális (alapból europe-west4)
 rag_client = agentplatform.Client(
     project=config.PROJECT_ID,
     location=config.rag_location(),

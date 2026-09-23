@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
-LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")
+LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west4")
 
 LLM_LOCATION = os.environ.get("LLM_LOCATION", "global")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.5-flash-lite")
