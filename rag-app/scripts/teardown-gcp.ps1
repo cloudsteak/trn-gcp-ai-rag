@@ -8,13 +8,26 @@ $ServerSa = "$($env:SERVER_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceacc
 $ClientSa = "$($env:CLIENT_SA_NAME)@$($env:GOOGLE_CLOUD_PROJECT).iam.gserviceaccount.com"
 
 Write-Host "1) Cloud Run szolgáltatások törlése"
-gcloud run services delete $env:CLOUD_RUN_CLIENT_NAME --region $env:GOOGLE_CLOUD_LOCATION --quiet
-gcloud run services delete $env:CLOUD_RUN_SERVER_NAME --region $env:GOOGLE_CLOUD_LOCATION --quiet
+
+$serviceNames = @($env:CLOUD_RUN_CLIENT_NAME, $env:CLOUD_RUN_SERVER_NAME)
+foreach ($service in $serviceNames) {
+    try {
+        gcloud run services delete $service --region $env:GOOGLE_CLOUD_LOCATION --quiet 2>$null
+        Write-Host "   ✓ $service törölve"
+    } catch {
+        Write-Host "   ⊘ $service nem található (már törölt?)"
+    }
+}
 
 Write-Host ""
 Write-Host "2) Service accountok törlése"
 foreach ($sa in @($ServerSa, $ClientSa)) {
-    gcloud iam service-accounts delete $sa --quiet
+    try {
+        gcloud iam service-accounts delete $sa --quiet 2>$null
+        Write-Host "   ✓ $sa törölve"
+    } catch {
+        Write-Host "   ⊘ $sa nem található (már törölt?)"
+    }
 }
 
 Write-Host ""
