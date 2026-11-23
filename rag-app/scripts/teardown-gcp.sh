@@ -11,15 +11,28 @@ SERVER_SA="${SERVER_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 CLIENT_SA="${CLIENT_SA_NAME}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 
 echo "1) Cloud Run szolgáltatások törlése"
-gcloud run services delete "$CLOUD_RUN_CLIENT_NAME" \
-  --region "$GOOGLE_CLOUD_LOCATION" --quiet || true
-gcloud run services delete "$CLOUD_RUN_SERVER_NAME" \
-  --region "$GOOGLE_CLOUD_LOCATION" --quiet || true
+if gcloud run services delete "$CLOUD_RUN_CLIENT_NAME" \
+  --region "$GOOGLE_CLOUD_LOCATION" --quiet 2>/dev/null; then
+  echo "   ✓ $CLOUD_RUN_CLIENT_NAME törölve"
+else
+  echo "   ⊘ $CLOUD_RUN_CLIENT_NAME nem található (már törölt?)"
+fi
+
+if gcloud run services delete "$CLOUD_RUN_SERVER_NAME" \
+  --region "$GOOGLE_CLOUD_LOCATION" --quiet 2>/dev/null; then
+  echo "   ✓ $CLOUD_RUN_SERVER_NAME törölve"
+else
+  echo "   ⊘ $CLOUD_RUN_SERVER_NAME nem található (már törölt?)"
+fi
 
 echo
 echo "2) Service accountok törlése"
 for sa in "$SERVER_SA" "$CLIENT_SA"; do
-  gcloud iam service-accounts delete "$sa" --quiet || true
+  if gcloud iam service-accounts delete "$sa" --quiet 2>/dev/null; then
+    echo "   ✓ $sa törölve"
+  else
+    echo "   ⊘ $sa nem található (már törölt?)"
+  fi
 done
 
 echo
